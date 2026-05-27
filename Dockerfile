@@ -1,29 +1,36 @@
-# 换成基于Debian的Node镜像，自带编译环境，完美解决node-gyp问题
+# 用带编译工具的 Debian 镜像
 FROM node:22-bookworm
 
-# 安装node-gyp必需的依赖：Python、build-essential、make等
+# 安装编译依赖（解决 node-gyp 问题）
 RUN apt-get update && apt-get install -y \
     python3 \
-    python3-pip \
     build-essential \
     make \
     g++ \
+    git \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
+# 复制源码
 COPY . .
 
-# 安装pnpm
+# 安装 pnpm
 RUN npm install -g pnpm@latest
 
 # 配置国内源
 RUN pnpm config set registry https://registry.npmmirror.com
 
-# 安装依赖（去掉--frozen-lockfile，避免锁文件问题）
-RUN pnpm install
+# 1. 先安装所有依赖，但忽略构建脚本
+RUN pnpm install --ignore-scripts
 
-# 构建前端UI
+# 2. 手动允许关键依赖的构建脚本
+RUN pnpm approve-builds better-sqlite3 electron playwright
+
+# 3. 重新执行一次构建脚本
+RUN pnpm install --force
+
+# 构建前端 UI
 RUN cd src/ui/brain-ui && pnpm install && pnpm run build && cd ../../..
 
 EXPOSE 3721
