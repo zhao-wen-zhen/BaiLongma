@@ -1,7 +1,7 @@
-# 用带完整依赖的 Node 22 镜像
+# 用带完整编译环境的 Node 22 镜像
 FROM node:22-bookworm
 
-# 安装必需的系统依赖（解决 node-gyp 和 powershell 报错）
+# 安装 node-gyp 必需的系统依赖
 RUN apt-get update && apt-get install -y \
     python3 \
     build-essential \
@@ -11,17 +11,18 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 
-# 1. 先复制根目录的 package.json，不复制脚本
-COPY package.json pnpm-lock.yaml ./
-
-# 2. 直接安装依赖，完全忽略所有脚本
-RUN npm install -g pnpm@latest && \
-    pnpm config set registry https://registry.npmmirror.com && \
-    pnpm install --ignore-scripts --force
-
-# 3. 复制全部源码
+# 一次性复制所有源码（包括 package.json）
 COPY . .
 
-# 4. 直接启动服务，不执行任何构建脚本
+# 安装 pnpm
+RUN npm install -g pnpm@latest
+
+# 配置国内源，加速依赖下载
+RUN pnpm config set registry https://registry.npmmirror.com
+
+# 安装依赖，全程忽略所有脚本，不依赖锁文件
+RUN pnpm install --ignore-scripts --force
+
+# 直接启动服务，不执行任何构建脚本
 EXPOSE 3721
 CMD ["pnpm", "run", "start"]
