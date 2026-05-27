@@ -1,7 +1,7 @@
-# 用带编译工具的 Debian 镜像
+# 用带完整依赖的 Node 22 镜像
 FROM node:22-bookworm
 
-# 安装编译依赖（解决 node-gyp 问题）
+# 安装必需的系统依赖（解决 node-gyp 和 powershell 报错）
 RUN apt-get update && apt-get install -y \
     python3 \
     build-essential \
@@ -11,28 +11,17 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 
-# 复制源码
+# 1. 先复制根目录的 package.json，不复制脚本
+COPY package.json pnpm-lock.yaml ./
+
+# 2. 直接安装依赖，完全忽略所有脚本
+RUN npm install -g pnpm@latest && \
+    pnpm config set registry https://registry.npmmirror.com && \
+    pnpm install --ignore-scripts --force
+
+# 3. 复制全部源码
 COPY . .
 
-# 安装 pnpm
-RUN npm install -g pnpm@latest
-
-# 配置国内源
-RUN pnpm config set registry https://registry.npmmirror.com
-
-# 1. 先安装所有依赖，但忽略构建脚本（避免触发 PowerShell）
-RUN pnpm install --ignore-scripts
-
-# 2. 手动放行关键依赖，跳过 Electron
-RUN pnpm approve-builds better-sqlite3 playwright
-
-# 3. 强制安装，只构建非 Electron 依赖
-RUN pnpm install --force --ignore-scripts
-
-# 4. 只构建前端 UI，不执行任何 Electron 相关脚本
-RUN cd src/ui/brain-ui && pnpm install && pnpm run build && cd ../../..
-
+# 4. 直接启动服务，不执行任何构建脚本
 EXPOSE 3721
-
-# 启动白龙马的核心服务，不启动 Electron
 CMD ["pnpm", "run", "start"]
